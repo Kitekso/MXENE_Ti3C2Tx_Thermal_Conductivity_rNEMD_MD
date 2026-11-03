@@ -1,0 +1,63 @@
+units           real
+dimension       3
+boundary        p p f
+atom_style      full
+
+#newton         on
+
+pair_style      lj/cut/coul/long 12 12
+pair_modify     mix geometric
+bond_style      harmonic
+angle_style     harmonic
+kspace_style    pppm 1.0e-5
+kspace_modify   slab 3.0
+
+read_data       Ti3C2_IFF_0deg_50x5nm.data
+
+neighbor        2.0 bin
+special_bonds   lj/coul 0.0 0.0 1.0
+
+#minimize
+thermo          100
+thermo_style    custom step pe ke etotal temp press ebond eangle edihed eimp evdwl ecoul elong
+thermo_modify   flush yes
+
+min_style       cg
+minimize        1.0e-4 1.0e-4 200 1000
+
+#NVT
+reset_timestep  0
+timestep        1.0
+
+velocity        all create 300.0 12345 mom yes rot yes dist gaussian
+
+fix             termostat all nvt temp 300.0 300.0 100.0
+run             200000
+unfix           termostat
+
+#NPT
+thermo_style    custom step pe ke etotal temp press pxx pyy lx ly
+thermo_modify   flush yes
+
+fix             barostat all npt temp 300.0 300.0 100.0 x 0.0 0.0 1000.0 y 0.0 0.0 1000.0
+run             200000
+unfix           barostat
+
+write_data      Ti3C2F2_IFF_equilibrated.data
+
+#RNEMD
+fix             izolacja all nve
+
+compute         plastry all chunk/atom bin/1d x lower 0.025 units reduced
+fix             profil_T all ave/chunk 10 100 1000 plastry temp file profil50nmTi3C2test_IFF.txt
+
+fix             heat all thermal/conductivity 200 x 40
+
+compute         energia_kinetyczna all ke/atom
+dump            film_ovito all custom 10000 cieplo_wizualizacja_Ti3C250nm2mlntestIFF.lammpstrj id type x y z c_energia_kinetyczna
+
+thermo          1000
+thermo_style    custom step time temp press f_heat xlo xhi ylo yhi etotal pxx pyy lx ly lz
+thermo_modify   norm no flush yes format float %.12g
+
+run             2000000
